@@ -116,6 +116,8 @@ def _report(manifest: dict) -> str:
         "Source: " + manifest["source"], "",
         "Run: " + manifest["run_id"], "",
         "Status: " + manifest["status"], "",
+        "Successful: " + str(manifest["summary"]["succeeded"]) + ", failed: "
+        + str(manifest["summary"]["failed"]), "",
         "## Pages", "",
     ]
     if manifest.get("robots_error"):
@@ -164,6 +166,7 @@ def run_scan(
             "same_host_only": True, "robots_enforced": True,
             "max_pages": settings.max_pages, "max_depth": settings.max_depth,
             "max_bytes": settings.max_bytes, "delay_seconds": settings.delay_seconds,
+            "timeout_seconds": settings.timeout_seconds, "user_agent": settings.user_agent,
         },
         "pages": [],
     }
@@ -179,8 +182,10 @@ def run_scan(
     with context as active:
         try:
             robots = _robots(active, origin, settings)
+            manifest["robots_status"] = "parsed" if robots is not None else "not_found"
         except (ScanError, TargetRejected, httpx.HTTPError) as exc:
             manifest["robots_error"] = str(exc)
+            manifest["robots_status"] = "unavailable"
             robots = "DENY_ALL"
         queue = deque([(origin, 0)])
         seen: set[str] = set()
@@ -232,9 +237,12 @@ def run_scan(
                 record.update({"status": "error", "error": str(exc)})
             manifest["pages"].append(record)
     manifest["finished_at"] = _utc_now()
+    successes = sum(page["status"] == "ok" for page in manifest["pages"])
+    failures = len(manifest["pages"]) - successes
+    manifest["summary"] = {"succeeded": successes, "failed": failures}
     manifest["status"] = (
-        "completed" if any(page["status"] == "ok" for page in manifest["pages"])
-        else "failed"
+        "completed" if successes > 0 and failures == 0
+        else "partial" if successes > 0 else "failed"
     )
     _write_json(directory / "manifest.json", manifest)
     (directory / "report.md").write_text(_report(manifest), encoding="utf-8")
