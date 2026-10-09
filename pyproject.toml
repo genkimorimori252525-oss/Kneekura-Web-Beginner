@@ -24,3 +24,7 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+markers = [
+  "browser_fixture: real Chromium test using only inline HTML fixtures",
+]

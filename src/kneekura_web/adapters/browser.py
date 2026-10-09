@@ -156,17 +156,18 @@ def capture_browser(
     *, config: BrowserCaptureConfig | None = None,
 ) -> Path:
     """Observe one permitted page. No clicks, authentication or form submission."""
+    settings = config or BrowserCaptureConfig(timeout_ms=timeout_ms)
+    origin = normalize_target(url)
+    assert_public_host(origin)
+    robots = _check_robots(origin, settings)
+
+    # A disallowed URL must be rejected before requiring browser dependencies.
     try:
         from playwright.sync_api import sync_playwright
     except ImportError as exc:
         raise RuntimeError(
             'Install browser extra, then run "python -m playwright install chromium"'
         ) from exc
-
-    settings = config or BrowserCaptureConfig(timeout_ms=timeout_ms)
-    origin = normalize_target(url)
-    assert_public_host(origin)
-    robots = _check_robots(origin, settings)
     directory = Path(output) / (
         datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
         + "-browser-" + secrets.token_hex(4)

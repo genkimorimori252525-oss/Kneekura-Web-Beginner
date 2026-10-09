@@ -25,6 +25,11 @@ def main(argv: list[str] | None = None) -> int:
     browser = sub.add_parser("capture", help="optional Playwright screenshot and DOM")
     browser.add_argument("url")
     browser.add_argument("--output", type=Path, default=Path("artifacts"))
+    browser.add_argument("--viewport-width", type=int, default=1280)
+    browser.add_argument("--viewport-height", type=int, default=720)
+    browser.add_argument("--max-requests", type=int, default=100)
+    browser.add_argument("--timeout-ms", type=int, default=25000)
+    browser.add_argument("--settle-ms", type=int, default=350)
 
     doc = sub.add_parser("convert", help="optional MarkItDown document conversion")
     doc.add_argument("path", type=Path)
@@ -51,8 +56,17 @@ def main(argv: list[str] | None = None) -> int:
             print("Result: " + manifest["status"])
             return 0 if manifest["status"] == "completed" else 2
         if args.command == "capture":
-            from .adapters.browser import capture_browser
-            result = capture_browser(args.url, args.output)
+            from .adapters.browser import BrowserCaptureConfig, capture_browser
+            result = capture_browser(
+                args.url, args.output,
+                config=BrowserCaptureConfig(
+                    width=args.viewport_width,
+                    height=args.viewport_height,
+                    max_requests=args.max_requests,
+                    timeout_ms=args.timeout_ms,
+                    settle_ms=args.settle_ms,
+                ),
+            )
         elif args.command == "convert":
             from .adapters.documents import convert_document
             result = convert_document(args.path, args.output)
