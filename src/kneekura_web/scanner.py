@@ -177,6 +177,7 @@ def run_scan(
             timeout=settings.timeout_seconds,
             headers={"User-Agent": settings.user_agent},
             follow_redirects=False,
+            trust_env=False,
         )
         if owns_client else nullcontext(client)
     )

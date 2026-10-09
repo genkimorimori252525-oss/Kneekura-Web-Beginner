@@ -38,6 +38,10 @@ def test_local_markitdown_conversion(tmp_path, monkeypatch):
     metadata = json.loads((folder / "conversion.json").read_text())
     assert metadata["source_filename"] == "example.txt"
     assert "source_sha256" in metadata
+    assert (folder / "source.bin").read_text() == "Input document"
+    capture = json.loads((folder / "capture.json").read_text())
+    assert capture["mode"] == "document"
+    assert len(capture["artifacts"]) == 3
 
 
 def test_crawl4ai_adapter_fake_browser(tmp_path, monkeypatch):
@@ -63,5 +67,8 @@ def test_crawl4ai_adapter_fake_browser(tmp_path, monkeypatch):
     folder = capture_crawl4ai("https://example.org/", tmp_path)
     assert (folder / "rendered.html").read_text() == "<h1>Hi</h1>"
     assert (folder / "content.md").read_text() == "# Hi"
+    capture = json.loads((folder / "capture.json").read_text())
+    assert capture["mode"] == "browser"
+    assert len(capture["artifacts"]) == 2
 
 

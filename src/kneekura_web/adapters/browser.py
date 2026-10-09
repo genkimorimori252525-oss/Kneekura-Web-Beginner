@@ -62,8 +62,8 @@ class BrowserCaptureConfig:
 # Evaluated inside the isolated browser page. Returns no text, cookies or tokens:
 # only geometries and display style fields needed for visual evidence.
 _LAYOUT_SCRIPT = r"""(limit) => {
-  const wanted = ['html','body','header','nav','main','section','article',
-    'h1','h2','h3','p','a','button','input','footer'];
+  const wanted = ['html','body','h1','h2','h3','header','nav','main',
+    'button','input','footer','article','section','p','a'];
   const seen = new Set();
   const results = [];
   for (const selector of wanted) {
@@ -399,6 +399,7 @@ def capture_browser(
                     if len(requests) > settings.max_requests
                     or response.status != 200
                     or (settings.archive_assets and skipped > 0)
+                    or any(row["policy"] != "allowed" for row in requests)
                     else "ok"
                 ),
             )

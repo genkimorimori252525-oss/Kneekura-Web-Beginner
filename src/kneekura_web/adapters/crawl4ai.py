@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 import secrets
 
+from ..evidence import build_capture, evidence_entry, save_json
 from ..policy import assert_public_host, normalize_target
 
 
@@ -29,13 +30,21 @@ async def _capture(url: str, folder: Path) -> None:
     markdown = md.raw_markdown if hasattr(md, "raw_markdown") else str(md or "")
     (folder / "rendered.html").write_bytes(rendered)
     (folder / "content.md").write_text(markdown, encoding="utf-8")
-    (folder / "capture.json").write_text(
-        json.dumps({
-            "source": url, "rendered_html_sha256": sha256(rendered).hexdigest(),
-            "markdown_sha256": sha256(markdown.encode("utf-8")).hexdigest(),
-            "warning": "Experimental adapter: no inherited robots/crawl limits.",
-        }, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
+    save_json(
+        folder / "capture.json",
+        build_capture(
+            mode="browser", source_url=url, final_url=url,
+            artifacts=[
+                evidence_entry(folder, "rendered.html", kind="html-extracted", media_type="text/html"),
+                evidence_entry(folder, "content.md", kind="markdown-derived", media_type="text/markdown"),
+            ],
+            observations={"engine": "crawl4ai"},
+            limits=[
+                "Crawl4AI experimental adapter only",
+                "no inherited static scanner robots/scope/traffic gates",
+                "not a trustworthy rendered DOM or complete resource archive",
+            ],
+        ),
     )
 
 

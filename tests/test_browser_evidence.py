@@ -169,6 +169,7 @@ def test_browser_capture_mock_produces_full_manifest(tmp_path, monkeypatch):
     manifest = json.loads((folder / "capture.json").read_text())
     assert manifest["schema_version"] == "0.2"
     assert manifest["mode"] == "browser"
+    assert manifest["status"] == "partial"  # off-host and POST requests were blocked
     assert manifest["observations"]["title"] == "Sample"
     assert len(manifest["artifacts"]) == 7
     assert (folder / "response.html").read_bytes() == b"<html>HTTP response body</html>"
