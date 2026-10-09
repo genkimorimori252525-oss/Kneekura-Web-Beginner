@@ -176,10 +176,6 @@ def test_browser_capture_mock_produces_full_manifest(tmp_path, monkeypatch):
     assert "Blocked requests: 2" in report
     assert "Original HTTP body SHA-256" in report
     assert "Initial document" in report
-    report = (folder / "report.md").read_text()
-    assert "Blocked requests: 2" in report
-    assert "Original HTTP body SHA-256" in report
-    assert "Initial document" in report
     assert (folder / "response.html").read_bytes() == b"<html>HTTP response body</html>"
     for artifact in manifest["artifacts"]:
         assert (folder / artifact["path"]).is_file()

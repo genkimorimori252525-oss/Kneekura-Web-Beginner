@@ -41,3 +41,19 @@ GitHub CI covers the Python base and mocked adapter interfaces. It does not guar
 - Never assert a page was captured if no raw evidence was saved.
 - An overall run with mixed successes and failures must be marked partial.
 - Provide exact dependencies, tags/commit SHAs and license provenance when integrating upstream code.
+
+## P1 continuation status — 2026-10-09
+
+Implemented on the **same draft PR #1**:
+- Evidence schema v0.2 and SHA-256 artifact descriptors shared by static scan, optional browser capture, local MarkItDown conversion and Crawl4AI experiment.
+- BrowserCaptureConfig with viewport dimensions, request limit, DOM byte limit and bounded style sampling.
+- robots.txt gate before launching Chromium; same-host requests, GET/HEAD only, robots per route, WebSocket closure where Playwright supports it.
+- Separate original response.html versus rendered.html DOM. Viewport screenshot plus computed layout/styles and structured network/resource metadata.
+- Network traces strip URL path, query, headers and request/response bodies; hash request URLs for correlation.
+- Opt-in same-host CSS, JS and image archiving with file and byte budgets, plus a report explaining referenced versus saved assets.
+- Human-readable browser report.md with checksums, HTTP response and blocked requests. Blocked/capped fetches are marked partial.
+- GitHub Actions Python 3.11 + 3.13 and a real Chromium local fixture test, alongside offline adapter mocks.
+
+**Not finished:** secure egress isolation for hostile sites, full Chromium response byte bounds before download, complete CSS/assets/interaction capture, mobile+desktop visual diffs, authorized live site verification, and selection/benchmark of remaining research adapters. All scripts, screenshots and raw documents are gitignored and may contain protected or personal content.
+
+Documentation: docs/p1-browser-evidence.md. **Leave PR #1 draft** until outstanding limitations receive their own review.

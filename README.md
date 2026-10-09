@@ -43,3 +43,7 @@ Optional adapters are single-page experiments and do **not** inherit the full st
 See [architecture](docs/architecture.md), [source register](docs/source-registry.md), and [roadmap](docs/roadmap.md).
 
 **Status:** initial foundation, subject to CI. Browser screenshot, MarkItDown and Crawl4AI are opt-in experimental adapters. CSS/JS asset archiving, visual diffs and persistent queues remain future work.
+
+## Browser capture report
+
+See [P1 browser evidence guide](docs/p1-browser-evidence.md) for file meanings, capture limitations, redacted metadata, opt-in asset archiving and next acceptance gates.
