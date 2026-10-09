@@ -15,6 +15,7 @@ from urllib.robotparser import RobotFileParser
 
 import httpx
 
+from .evidence import build_capture, evidence_entry, save_json
 from .html_inspector import in_scope_links, inspect_html
 from .policy import TargetRejected, assert_public_host, normalize_target, same_host
 
@@ -221,6 +222,33 @@ def run_scan(
                     + extracted["text_excerpt"] + "\n",
                     encoding="utf-8",
                 )
+                capture = build_capture(
+                    mode="static",
+                    source_url=next_url,
+                    final_url=final,
+                    captured_at=_utc_now(),
+                    artifacts=[
+                        evidence_entry(folder, "raw.html", kind="html-original", media_type="text/html"),
+                        evidence_entry(folder, "extracted.json", kind="structure-json", media_type="application/json"),
+                        evidence_entry(folder, "page.md", kind="text-preview", media_type="text/markdown"),
+                    ],
+                    observations={
+                        "title": extracted["title"],
+                        "counts": {
+                            "headings": len(extracted["headings"]),
+                            "links": len(extracted["links"]),
+                            "images": len(extracted["images"]),
+                            "stylesheets": len(extracted["stylesheets"]),
+                            "scripts": len(extracted["scripts"]),
+                        },
+                        "http_status": code,
+                    },
+                    limits=[
+                        "static HTML only", "no script execution",
+                        "linked CSS, JS and images not downloaded",
+                    ],
+                )
+                save_json(folder / "capture.json", capture)
                 record.update({
                     "status": "ok", "final_url": final, "http_status": code,
                     "content_type": headers.get("content-type", ""),
@@ -228,6 +256,7 @@ def run_scan(
                     "bytes": len(body), "raw_path": f"pages/{number:04d}/raw.html",
                     "extracted_path": f"pages/{number:04d}/extracted.json",
                     "page_path": f"pages/{number:04d}/page.md",
+                    "capture_path": f"pages/{number:04d}/capture.json",
                     "internal_links": links, "captured_at": _utc_now(),
                 })
                 seen.add(final)
