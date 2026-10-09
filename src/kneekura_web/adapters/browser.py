@@ -32,6 +32,10 @@ class BrowserCaptureConfig:
     settle_ms: int = 350
     max_html_bytes: int = 2_000_000
     max_layout_elements: int = 60
+    archive_assets: bool = False
+    max_asset_files: int = 20
+    max_asset_bytes: int = 256_000
+    max_asset_total_bytes: int = 3_000_000
     user_agent: str = "KneekuraWebBeginner/0.1 (research; robots respected)"
 
     def __post_init__(self) -> None:
@@ -47,6 +51,12 @@ class BrowserCaptureConfig:
             raise ValueError("max_html_bytes must be 1024..20000000")
         if not 1 <= self.max_layout_elements <= 200:
             raise ValueError("max_layout_elements must be 1..200")
+        if not 1 <= self.max_asset_files <= 100:
+            raise ValueError("max_asset_files must be 1..100")
+        if not 1024 <= self.max_asset_bytes <= 5_000_000:
+            raise ValueError("max_asset_bytes must be 1024..5000000")
+        if not 1024 <= self.max_asset_total_bytes <= 20_000_000:
+            raise ValueError("max_asset_total_bytes must be 1024..20000000")
 
 
 # Evaluated inside the isolated browser page. Returns no text, cookies or tokens:
@@ -175,6 +185,7 @@ def capture_browser(
     directory.mkdir(parents=True, exist_ok=False)
 
     requests: list[dict[str, Any]] = []
+    asset_responses: list[Any] = []
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(headless=True)
         try:
@@ -230,6 +241,12 @@ def capture_browser(
                 context.route_web_socket("**/*", lambda websocket: websocket.close())
 
             def log_response(response) -> None:
+                if (
+                    settings.archive_assets
+                    and response.request.resource_type in {"stylesheet", "script", "image"}
+                    and len(asset_responses) < settings.max_asset_files * 3
+                ):
+                    asset_responses.append(response)
                 fingerprint = request_fingerprint(response.url)
                 for row in reversed(requests):
                     if row["url_sha256"] == fingerprint and row["http_status"] is None:
@@ -249,6 +266,9 @@ def capture_browser(
             if settings.settle_ms:
                 page.wait_for_timeout(settings.settle_ms)
 
+            original = response.body()
+            if len(original) > settings.max_html_bytes:
+                raise ScanError("Original HTTP response exceeded configured byte limit")
             rendered = page.content().encode("utf-8")
             if len(rendered) > settings.max_html_bytes:
                 raise ScanError("Rendered DOM exceeded configured byte limit")
@@ -256,6 +276,7 @@ def capture_browser(
             layout = extract_layout(page, settings.max_layout_elements)
             inventory = _asset_references(final, extracted)
 
+            (directory / "response.html").write_bytes(original)
             (directory / "rendered.html").write_bytes(rendered)
             save_json(directory / "structure.json", extracted)
             save_json(directory / "layout.json", {
@@ -270,9 +291,63 @@ def capture_browser(
                 "requests": requests[:settings.max_requests],
                 "warning": "URL paths/queries, headers and request/response bodies are omitted.",
             })
+            archived: list[dict[str, Any]] = []
+            skipped = 0
+            total_asset_bytes = 0
+            if settings.archive_assets:
+                (directory / "assets").mkdir()
+                for asset_response in asset_responses:
+                    if len(archived) >= settings.max_asset_files:
+                        skipped += 1
+                        break
+                    if not 200 <= asset_response.status < 300:
+                        skipped += 1
+                        continue
+                    try:
+                        asset_url = normalize_target(asset_response.url)
+                        if not same_host(asset_url, origin):
+                            skipped += 1
+                            continue
+                        content_length = asset_response.headers.get("content-length", "")
+                        if content_length.isdigit() and int(content_length) > settings.max_asset_bytes:
+                            skipped += 1
+                            continue
+                        payload = asset_response.body()
+                    except Exception:
+                        # Optional archival is best effort; never expose response
+                        # URL/headers/body in failure diagnostics.
+                        skipped += 1
+                        continue
+                    if (
+                        len(payload) > settings.max_asset_bytes
+                        or total_asset_bytes + len(payload) > settings.max_asset_total_bytes
+                    ):
+                        skipped += 1
+                        continue
+                    path = "assets/" + f"{len(archived) + 1:04d}.bin"
+                    (directory / path).write_bytes(payload)
+                    total_asset_bytes += len(payload)
+                    entry = evidence_entry(
+                        directory, path, kind="same-host-asset",
+                        media_type=asset_response.headers.get(
+                            "content-type", "application/octet-stream"
+                        ).split(";", 1)[0][:100],
+                    )
+                    archived.append({
+                        "url_origin": scrub_url(asset_url),
+                        "url_sha256": request_fingerprint(asset_url),
+                        "resource_type": asset_response.request.resource_type,
+                        **entry,
+                    })
+
             save_json(directory / "assets.json", {
                 "references": inventory,
-                "note": "References do not establish that assets were saved.",
+                "archived": archived,
+                "skipped": skipped,
+                "archive_enabled": settings.archive_assets,
+                "max_single_asset_bytes": settings.max_asset_bytes,
+                "max_total_asset_bytes": settings.max_asset_total_bytes,
+                "note": "Only explicitly archived same-host assets have local paths.",
             })
             page.screenshot(
                 path=str(directory / "screenshot.png"),
@@ -280,6 +355,7 @@ def capture_browser(
             )
 
             artifact_specs = [
+                ("response.html", "html-response-original", "text/html"),
                 ("rendered.html", "dom-rendered", "text/html"),
                 ("structure.json", "structure-json", "application/json"),
                 ("layout.json", "computed-layout", "application/json"),
@@ -287,6 +363,10 @@ def capture_browser(
                 ("assets.json", "resource-references", "application/json"),
                 ("screenshot.png", "viewport-screenshot", "image/png"),
             ]
+            artifact_specs.extend(
+                (item["path"], "same-host-asset", item["media_type"])
+                for item in archived
+            )
             capture = build_capture(
                 mode="browser",
                 source_url=origin, final_url=final,
@@ -300,16 +380,27 @@ def capture_browser(
                     "viewport": {"width": settings.width, "height": settings.height},
                     "sampled_layout_elements": len(layout),
                     "asset_references": len(inventory),
+                    "archived_assets": len(archived),
+                    "archive_skipped": skipped,
+                    "archive_enabled": settings.archive_assets,
                     "request_records": min(len(requests), settings.max_requests),
                 },
                 limits=[
                     "single navigation, no form submission or login",
                     "viewport screenshot, not entire scrolling page",
                     "no third-party network resources by default",
-                    "referenced assets are NOT archived",
+                    "CSS, script and image assets archived only when explicitly enabled",
+                    "archival stores fetched data and may contain proprietary information",
+                    "download byte limits apply to storage, not Chromium network transfer",
                     "DNS preflight is not network sandboxing",
                 ],
-                status="partial" if len(requests) > settings.max_requests else "ok",
+                status=(
+                    "partial"
+                    if len(requests) > settings.max_requests
+                    or response.status != 200
+                    or (settings.archive_assets and skipped > 0)
+                    else "ok"
+                ),
             )
             # Compatibility with the initial optional adapter report format.
             capture["source"] = origin

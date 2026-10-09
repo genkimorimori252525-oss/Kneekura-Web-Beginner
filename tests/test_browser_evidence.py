@@ -18,7 +18,8 @@ def _public_dns(monkeypatch):
 
 @pytest.mark.parametrize("kwargs", [
     {"width": 100}, {"height": 1500}, {"max_requests": 0},
-    {"settle_ms": 4000}, {"max_layout_elements": 0},
+    {"settle_ms": 4000}, {"max_layout_elements": 0}, {"max_asset_files": 0},
+    {"max_asset_bytes": 0}, {"max_asset_total_bytes": 0},
 ])
 def test_browser_limits(kwargs):
     with pytest.raises(ValueError):
@@ -79,7 +80,7 @@ def test_browser_capture_mock_produces_full_manifest(tmp_path, monkeypatch):
         def goto(self, url, *, wait_until, timeout):
             assert url == self.url
             assert wait_until == "domcontentloaded"
-            return SimpleNamespace(status=200)
+            return SimpleNamespace(status=200, body=lambda: b"<html>HTTP response body</html>")
 
         def wait_for_timeout(self, ms):
             assert ms == 350
@@ -124,7 +125,12 @@ def test_browser_capture_mock_produces_full_manifest(tmp_path, monkeypatch):
             for route in (good, outside, unsafe):
                 self.route_handler(route)
                 requests.append(route)
-            self.response_handler(SimpleNamespace(url=good.request.url, status=200))
+            self.response_handler(SimpleNamespace(
+                url=good.request.url, status=200,
+                request=SimpleNamespace(resource_type="stylesheet"),
+                headers={"content-type": "text/css"},
+                body=lambda: b"body {color: purple}",
+            ))
             return Page()
 
         def close(self):
@@ -164,7 +170,8 @@ def test_browser_capture_mock_produces_full_manifest(tmp_path, monkeypatch):
     assert manifest["schema_version"] == "0.2"
     assert manifest["mode"] == "browser"
     assert manifest["observations"]["title"] == "Sample"
-    assert len(manifest["artifacts"]) == 6
+    assert len(manifest["artifacts"]) == 7
+    assert (folder / "response.html").read_bytes() == b"<html>HTTP response body</html>"
     for artifact in manifest["artifacts"]:
         assert (folder / artifact["path"]).is_file()
     network = json.loads((folder / "network.json").read_text())
@@ -174,3 +181,17 @@ def test_browser_capture_mock_produces_full_manifest(tmp_path, monkeypatch):
     assert "rev=3" not in json.dumps(network)
     assert network["requests"][1]["policy"] == "blocked-off-host"
     assert network["requests"][2]["policy"] == "blocked-unsafe-method"
+
+    second = capture_browser(
+        "https://example.org/", tmp_path,
+        config=BrowserCaptureConfig(archive_assets=True),
+    )
+    saved = json.loads((second / "assets.json").read_text())
+    assert saved["archive_enabled"] is True
+    assert len(saved["archived"]) == 1
+    asset = saved["archived"][0]
+    assert (second / asset["path"]).read_bytes() == b"body {color: purple}"
+    assert "style.css" not in json.dumps(saved)
+    captured = json.loads((second / "capture.json").read_text())
+    assert captured["observations"]["archived_assets"] == 1
+    assert len(captured["artifacts"]) == 8

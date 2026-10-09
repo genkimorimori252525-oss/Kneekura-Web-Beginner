@@ -20,7 +20,9 @@ Optional integrations (separate dependencies and execution boundaries):
 
     python -m pip install -e ".[browser]"
     python -m playwright install chromium
-    kneekura-web capture https://example.org --output artifacts
+    kneekura-web capture https://example.org --output artifacts --viewport-width 1280 --viewport-height 720
+
+For targets where source assets may lawfully be retained, add `--archive-assets` to store bounded same-host CSS, JS and image response bodies (each at most 256KB; total at most 3MB). The browser still transfers responses before these storage quotas are applied. Browser evidence includes `response.html` (initial HTTP body), `rendered.html` (post-JS DOM), `screenshot.png`, `layout.json`, `network.json`, `assets.json` and `capture.json`. Network metadata deliberately removes URL paths, queries and headers.
 
     python -m pip install -e ".[documents]"
     kneekura-web convert ./sample.pdf --output artifacts

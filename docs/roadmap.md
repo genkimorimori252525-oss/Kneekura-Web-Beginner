@@ -39,3 +39,11 @@ Preservation-first: add capabilities without deleting prior original evidence. K
 4. No hidden login, bot bypass or unlimited crawling.
 5. Before copying code: exact upstream commit, version and license review.
 6. Any reproduction claim needs separate visual/behavioral evidence rather than generated Markdown.
+
+## P1 progress checkpoint (2026-10-09)
+
+- Implemented common capture metadata and hashed artifacts shared between static HTML and browser mode.
+- Playwright browser now records source response vs rendered DOM, viewport screenshot, bounded layout/computed style sample and sanitized request metadata.
+- Optional bounded same-host asset archival; disabled by default and guarded by `--archive-assets`.
+- CI includes a real Chromium test that renders a local in-memory fixture, in addition to mocked policy/adapter tests.
+- Still pending: OS-level egress isolation, full redaction of captured source content, retry/backoff, cross-viewport visual comparison, browser operation trace, and authorized live-site regression tests.

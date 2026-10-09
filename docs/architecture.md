@@ -37,3 +37,11 @@ Do not claim complete site coverage, pixel-perfect fidelity, code reproduction, 
 ## Pending work
 
 Actual stylesheet/script/media archiving, request tracing and redaction, DOM interaction recording, browser/network policy parity, viewport-based rendering, visual diffs, JS runtime observations, adaptive CSS selectors, queue persistence, multi-site orchestration and comprehensive live integration testing.
+
+## Browser P1 evidence
+
+The optional Playwright capture now stores `response.html` (initial document body) and `rendered.html` (post-JavaScript DOM) separately. Those sources may diverge after hydration. A viewport screenshot, bounding boxes/computed styles for a bounded element sample, structure.json, and sanitized network metadata form additional evidence. Network metadata retains HTTP status, request method, resource category, policy outcome, host-only URL and SHA-256 correlation fingerprint, never raw query strings, cookies, request headers or bodies.
+
+`assets.json` always inventories DOM references; by default these are *not* actual resource bytes. The opt-in `--archive-assets` flag saves bounded same-host CSS/JS/images, preserving byte hashes and media types. These files can contain copyrighted assets or sensitive information and must stay local/authorized. Storage budgets are not equivalent to network response byte budgets. Browser capture checks robots.txt before Chromium starts, then checks scope and robots for routed GET/HEAD requests, blocks off-host HTTP and WebSockets (when browser supports the routing API), and limits request count. It is not a complete protection against unsafe scripts or network-level rebinding.
+
+P1 browser implementation is still **single-page, single-viewport**. It does not guarantee all network requests are observed, complete CSS coverage, deterministic sites, or visual fidelity. The only automated actual-Chromium test uses inline HTML fixture; live target integration and adversarial egress tests remain pending.

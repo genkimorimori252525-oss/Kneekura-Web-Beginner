@@ -30,6 +30,7 @@ def main(argv: list[str] | None = None) -> int:
     browser.add_argument("--max-requests", type=int, default=100)
     browser.add_argument("--timeout-ms", type=int, default=25000)
     browser.add_argument("--settle-ms", type=int, default=350)
+    browser.add_argument("--archive-assets", action="store_true", help="store bounded same-host CSS/JS/images; authorized targets only")
 
     doc = sub.add_parser("convert", help="optional MarkItDown document conversion")
     doc.add_argument("path", type=Path)
@@ -65,6 +66,7 @@ def main(argv: list[str] | None = None) -> int:
                     max_requests=args.max_requests,
                     timeout_ms=args.timeout_ms,
                     settle_ms=args.settle_ms,
+                    archive_assets=args.archive_assets,
                 ),
             )
         elif args.command == "convert":
